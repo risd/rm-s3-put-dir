@@ -1,0 +1,95 @@
+#!/usr/bin/env node
+
+var putDir = require('../index.js');
+
+var fs = require('fs');
+var usage = fs.readFileSync(__dirname + '/cmdUsage.md').toString();
+var parseArgs = require('minimist');
+
+var args = parseArgs(process.argv.slice(2));
+
+var defaultConfPath = getUserHome() + '/.risdmedia/aws.json';
+
+var opts = {};
+
+if (args._.length === 1) {
+    opts.directory = args._[0];
+}
+else {
+    var e = [
+        'Must include a directory to upload.',
+        'Remaining options are behind flags.',
+        '',
+        '\trm-s3-put-dir directory',
+        '',
+        usage
+    ];
+    console.log(e.join('\n'));
+    return;
+}
+
+var confPath;
+if (args.aws) {
+    if (args.aws.slice(0,1) === '~') {
+        confPath = getUserHome() + args.aws.slice(1, args.aws.length);
+    }
+    else {
+        confPath = process.cwd() + args.aws;
+    }
+}
+else {
+    confPath = defaultConfPath;
+}
+
+try {
+    opts.aws = JSON.parse(fs.readFileSync(confPath));
+} catch (err) {
+    var e = [
+        'A configuration file is required.',
+        'Tried finding one here:',
+        '',
+        '\t' + confPath,
+        '',
+        'Explicitly pass in a file: ',
+        '',
+        '\trm-s3-put-dir --aws=aws.json',
+        '',
+        'Or save one to the default ',
+        'location:',
+        '',
+        '\t~/.risdmedia/aws.json',
+        ''
+    ];
+    throw new Error(e.join('\n'));
+}
+
+if ('keyPrefix' in args) {
+    opts.keyPrefix = args.keyPrefix;
+}
+
+if ('bucket' in args) {
+    opts.bucket = args.bucket;
+} else {
+    var e = [
+        'Pass in the name of a bucket to use:',
+        'with the `bucket` switch.',
+        '',
+        '\trm-s3-put-dir --bucket=name-of-bucket',
+        ''
+    ];
+    throw new Error(e.join('\n'));
+}
+
+if ('verbose' in args) {
+    opts.verbose = true;
+}
+
+putDir(opts);
+
+
+function getUserHome() {
+  return process.env[
+            (process.platform == 'win32') ?
+            'USERPROFILE' : 'HOME'
+        ];
+}
