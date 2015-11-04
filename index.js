@@ -180,6 +180,7 @@ function FindFiles(directory) {
             stream.push(filePath);
         });
         finder.on('end', function () {
+            stream.push(null);
             next();
         });
     }
@@ -192,7 +193,7 @@ function UploadFiles (s3, conf) {
 	return through.obj(uploads);
 
 	function uploads (filePath, enc, next) {
-		var self = this;
+		var stream = this;
 
 		if (conf.verobse) {
 			var m = [
@@ -211,6 +212,7 @@ function UploadFiles (s3, conf) {
 			console.log(err);
 		});
 		uploader.on('uploaded', function (details) {
+            stream.push(details);
 			next();
 		});
 		
