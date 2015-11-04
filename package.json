@@ -1,8 +1,11 @@
 {
   "name": "rm-s3-put-dir",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "CLI for RISD Media to put a directory on S3.",
   "main": "index.js",
+  "bin": {
+    "rm-s3-put-dir": "bin/cmd.js"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
