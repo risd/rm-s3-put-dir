@@ -28,6 +28,8 @@ pusher.on('end', function () {
 });
 ```
 
+As command line utility:
+
 ```
 rm-s3-put-dir directory
     --bucket
