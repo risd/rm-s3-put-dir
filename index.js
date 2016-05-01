@@ -10,7 +10,6 @@ module.exports = RmS3PutDir;
 function RmS3PutDir (opts) {
 
 	var aws = require('aws-sdk');
-	var s3 = require('s3');
 
     // Ensure you have a directory to upload to
     var e;
@@ -49,9 +48,11 @@ function RmS3PutDir (opts) {
         ];
         throw new Error(e.join('\n'));
     }
-	
+
+    opts.aws.region = 'us-east-1';
 	aws.config.update({ accessKeyId: opts.aws.key,
-                    	secretAccessKey: opts.aws.secret });
+                    	secretAccessKey: opts.aws.secret,
+                        region: opts.aws.region });
 
     opts.keyPrefix = opts.keyPrefix || '';
 
@@ -62,7 +63,8 @@ function RmS3PutDir (opts) {
             bucket:    opts.bucket,
             keyPrefix: opts.keyPrefix,
             isWebsite: opts.isWebsite,
-            gitSuffix: opts.gitSuffix
+            gitSuffix: opts.gitSuffix,
+            aws:       opts.aws
         }]);
 
     var pipeline = [source];
@@ -83,8 +85,7 @@ function RmS3PutDir (opts) {
 
     pipeline = pipeline
         .concat([
-            FindFiles(opts.directory),
-            UploadFiles(awsS3, opts)
+            UploadFiles()
         ]);
 
 	return pump.apply(null, pipeline);
@@ -116,7 +117,7 @@ function CreateBucketWithS3 (s3) {
     function createBucket (conf, enc, next) {
 
 		var m = [
-            'Ensuring S3 bucket exists.'
+            'Ensuring S3 bucket exists: ', conf.bucket
         ];
         debug(m.join(''));
 
@@ -171,7 +172,7 @@ function SetBucketPolicyWithS3 (s3) {
 
     	var m = [
             'Configuring S3 bucket policy for',
-            'public read.'
+            'public read: ', conf.bucket
         ];
         debug(m.join(''));
 
@@ -223,7 +224,7 @@ function SetWebsiteConfigWithS3 (s3) {
         var self = this;
 
         var m = [
-            'Configuring S3 bucket for static hosting.'
+            'Configuring S3 bucket for static hosting: ', conf.bucket
         ];
         debug(m.join(''));
 
@@ -235,7 +236,7 @@ function SetWebsiteConfigWithS3 (s3) {
             ];
             throw new Error(e.join(''));
         } else {
-            params.Bucket = conf.bucketName;
+            params.Bucket = conf.bucket;
             s3.putBucketWebsite(params, finish);
         }
 
@@ -246,7 +247,7 @@ function SetWebsiteConfigWithS3 (s3) {
                 throw new Error(err);
             } else {
                 conf.websiteConfig = params;
-                conf.url = url(conf.bucketName);
+                conf.url = url(conf.bucket);
                 console.log(conf.url);
             }
             self.push(conf);
@@ -255,54 +256,42 @@ function SetWebsiteConfigWithS3 (s3) {
     }
 }
 
-function FindFiles(directory) {
-    var findit = require('findit');
-    return through.obj(f);
-
-    function f (conf, enc, next) {
-        var stream = this;
-
-        var finder = findit(directory);
-
-        finder.on('file', function (filePath, stat) {
-            stream.push(filePath);
-        });
-        finder.on('end', function () {
-            stream.push(null);
-            next();
-        });
-    }
-}
-
-function UploadFiles (s3, conf) {
-	var s3stream = require('s3-upload-stream')(s3);
+function UploadFiles () {
+	var s3sync = require('s3-sync');
+    var readdirp = require('readdirp');
 	var mime = require('mime');
 
 	return through.obj(uploads);
 
-	function uploads (filePath, enc, next) {
+	function uploads (conf, enc, next) {
 		var stream = this;
 
 		var m = [
-			'Uploading:',
-			filePath,
-			('to s3 bucket ' + conf.bucket)
+			'Uploading to s3 bucket ', conf.bucket
 		];
-		debug(m.join('\n'));
+		debug(m.join(' '));
 
-		var uploader = s3stream.upload({
-			Bucket: conf.bucket,
-			Key: conf.keyPrefix + filePath,
-			ContentType: mime.lookup(filePath)
-		});
-		uploader.on('error', function (err) {
-			debug(err);
-		});
-		uploader.on('uploaded', function (details) {
-            stream.push(details);
-			next();
-		});
-		
-		fs.createReadStream(process.cwd() + '/' + filePath).pipe(uploader);
+        var files = readdirp({
+            root: conf.directory,
+            directoryFilter: ['!.git', '!cache']
+        })
+        .on('error', debug);
+
+        var uploader = s3sync({
+            key: conf.aws.key,
+            secret: conf.aws.secret,
+            bucket: conf.bucket,
+            concurrency: 16
+        })
+        .on('data', function (file) {
+            debug(file.url);
+        })
+        .on('error', debug)
+        .on('end', function () {
+            debug('Done uploading.');
+            next();
+        });
+
+        files.pipe(uploader);
 	}
 }

@@ -5,9 +5,9 @@ Function and command line utility for RISD Media to put directories on S3.
 As a function:
 
 ```JavaScript
-var rmS3PutDir = require('rm-s3-put-dir');
+var putDir = require('rm-s3-put-dir');
 
-var pusher = rmS3PutDir({
+var pusher = putDir({
 	aws: {
 		key: String,
 		secret: String
@@ -15,16 +15,12 @@ var pusher = rmS3PutDir({
 	directory: String,
 	bucket: String,
 	keyPrefix: String,   // optional
-	verbose: Boolean     // optional
-});
-
-pusher.on('data', function (fileUploadDetails) {
-	// fileUploadDetails provided by `s3-upload-stream`
-	console.log(fileUploadDetails);
+    isWebsite: Boolean,  // optional
+	gitSuffix: Boolean   // optional
 });
 
 pusher.on('end', function () {
-	
+	console.log('Done uploading!')
 });
 ```
 
