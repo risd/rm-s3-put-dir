@@ -246,6 +246,7 @@ function SetWebsiteConfigWithS3 (s3) {
             } else {
                 conf.websiteConfig = params;
                 conf.url = url(conf.bucketName);
+                console.log(conf.url);
             }
             self.push(conf);
             next();
