@@ -34,6 +34,7 @@ As command line utility:
 rm-s3-put-dir directory
     --bucket
     --aws
+    --branchSuffix
     --keyPrefix
 
 `directory`   The path to the file to upload.
@@ -47,10 +48,24 @@ rm-s3-put-dir directory
               Expects two keys: `key` & `secret`.
               Required.
 
+`gitSuffix`   Boolean flag. If included, the bucket
+              name will be suffixed with `-` & the
+              name of the current branch.
+
+`isWebsite`   Boolean flag. If included, the bucket
+              will be configured as a static website.
+
 `keyPrefix`   Prefix for each file uploaded to
               the bucket.
+              Optional. Defaults to an empty string.
 
 Example
 
 ./bin/cmd public --bucket=risdmedia-assets
+
+Using `--gitSuffix` from a branch named `develop`,
+would produce publishing to a bucket named
+`risdmedia-assets-develop`.
+
+./bin/cmd public --bucket=risdmedia-assets --gitSuffix
 ```

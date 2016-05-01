@@ -1,3 +1,5 @@
+var debug = require('debug')('rm-s3-put-dir');
+
 var fs = require('fs');
 var through = require('through2');
 var from = require('from2-array');
@@ -51,20 +53,56 @@ function RmS3PutDir (opts) {
                     	secretAccessKey: opts.aws.secret });
 
     opts.keyPrefix = opts.keyPrefix || '';
-    opts.verbose = opts.verbose || false;
 
 	var awsS3 = new aws.S3();
 
-	return from.obj([{
+    var source = from.obj([{
             directory: opts.directory,
             bucket:    opts.bucket,
             keyPrefix: opts.keyPrefix,
-			verbose:   opts.verbose
-		}])
-		.pipe(CreateBucketWithS3(awsS3))
-        .pipe(SetBucketPolicyWithS3(awsS3))
-        .pipe(FindFiles(opts.directory))
-        .pipe(UploadFiles(awsS3, opts));
+            isWebsite: opts.isWebsite,
+            gitSuffix: opts.gitSuffix
+        }]);
+
+    var pipeline = [source];
+
+    if (opts.gitSuffix)
+        pipeline = pipeline
+            .concat([GitSuffix()]);
+
+    pipeline = pipeline
+        .concat([
+            CreateBucketWithS3(awsS3),
+            SetBucketPolicyWithS3(awsS3)
+        ]);
+
+    if (opts.isWebsite)
+        pipeline = pipeline
+            .concat([SetWebsiteConfigWithS3(awsS3)])
+
+    pipeline = pipeline
+        .concat([
+            FindFiles(opts.directory),
+            UploadFiles(awsS3, opts)
+        ]);
+
+	return pump.apply(null, pipeline);
+}
+
+function GitSuffix () {
+    var git = require('git-rev');
+    return through.obj(appendBranch);
+
+    function appendBranch (conf, enc, next) {
+        var stream = this;
+        git.branch(function (branch) {
+            conf.bucket = conf.bucket + '-' +
+                branch.toLowerCase().replace(/ /g, '-');
+
+            stream.push(conf);
+            next();
+        });
+    }
 }
 
 function CreateBucketWithS3 (s3) {
@@ -76,12 +114,10 @@ function CreateBucketWithS3 (s3) {
 
     function createBucket (conf, enc, next) {
 
-    	if (conf.verbose) {
-    		var m = [
-	            'Ensuring S3 bucket exists.'
-	        ];
-	        console.log(m.join(''));
-    	}
+		var m = [
+            'Ensuring S3 bucket exists.'
+        ];
+        debug(m.join(''));
 
         var self = this;
         if (conf.bucket === false) {
@@ -98,7 +134,7 @@ function CreateBucketWithS3 (s3) {
 
         function finish (err, data) {
             if (err) {
-                console.log(err, err.stack);
+                debug(err, err.stack);
                 throw new Error('Error creating bucket.');
             }
             self.push(conf);
@@ -132,13 +168,11 @@ function SetBucketPolicyWithS3 (s3) {
     function plcy (conf, enc, next) {
         var self = this;
 
-        if (conf.verbose) {
-        	var m = [
-	            'Configuring S3 bucket policy for',
-	            'public read.'
-	        ];
-	        console.log(m.join(''));
-        }
+    	var m = [
+            'Configuring S3 bucket policy for',
+            'public read.'
+        ];
+        debug(m.join(''));
 
         if (conf.bucket === false) {
             var e = [
@@ -157,9 +191,61 @@ function SetBucketPolicyWithS3 (s3) {
         function finish (err, data) {
             if (err) {
                 conf.policyConfig = false;
-                console.log(err);
-                console.log(err.stack);
+                debug(err);
+                debug(err.stack);
                 throw new Error(err);
+            }
+            self.push(conf);
+            next();
+        }
+    }
+}
+
+function SetWebsiteConfigWithS3 (s3) {
+    var params = {
+        WebsiteConfiguration: {
+            IndexDocument: { Suffix: 'index.html' },
+            ErrorDocument: { Key: '404.html' }
+        }
+    };
+    function url (bucketName) {
+        return [
+            'http://',
+            bucketName,
+            '.s3-website-us-east-1.amazonaws.com'
+        ].join('');
+    }
+
+    return through.obj(websiteConig);
+
+    function websiteConig (conf, enc, next) {
+        var self = this;
+
+        var m = [
+            'Configuring S3 bucket for static hosting.'
+        ];
+        debug(m.join(''));
+
+        if (conf.bucket === false) {
+            var e = [
+                'Requires a bucket to have been made ',
+                'before it can be configured for ',
+                'static hosting.'
+            ];
+            throw new Error(e.join(''));
+        } else {
+            params.Bucket = conf.bucketName;
+            s3.putBucketWebsite(params, finish);
+        }
+
+        function finish (err, data) {
+            if (err) {
+                debug(err);
+                debug(err.stack);
+                throw new Error(err);
+            } else {
+                conf.websiteConfig = params;
+                conf.url = url(conf.bucketName);
             }
             self.push(conf);
             next();
@@ -195,21 +281,20 @@ function UploadFiles (s3, conf) {
 	function uploads (filePath, enc, next) {
 		var stream = this;
 
-		if (conf.verobse) {
-			var m = [
-				'Uploading:',
-				filePath,
-				('to s3 bucket ' + conf.bucket)
-			];
-			console.log(m.join('\n'));
-		}
+		var m = [
+			'Uploading:',
+			filePath,
+			('to s3 bucket ' + conf.bucket)
+		];
+		debug(m.join('\n'));
+
 		var uploader = s3stream.upload({
 			Bucket: conf.bucket,
 			Key: conf.keyPrefix + filePath,
 			ContentType: mime.lookup(filePath)
 		});
 		uploader.on('error', function (err) {
-			console.log(err);
+			debug(err);
 		});
 		uploader.on('uploaded', function (details) {
             stream.push(details);
