@@ -279,7 +279,9 @@ function UploadFiles () {
         var prefixer = through.obj(
             function (row, enc, next) {
                 debug(row);
-                row.path = [conf.directory, row.name].join('/');
+                if (conf.directory !== '.') {
+                    row.path = [conf.directory, row.name].join('/');
+                }
                 this.push(row);
                 next();
             });
