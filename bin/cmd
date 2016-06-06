@@ -63,10 +63,6 @@ try {
     throw new Error(e.join('\n'));
 }
 
-if ('keyPrefix' in args) {
-    opts.keyPrefix = args.keyPrefix;
-}
-
 if ('gitSuffix' in args) {
     opts.gitSuffix = args.gitSuffix;
 }

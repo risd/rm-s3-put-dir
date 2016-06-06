@@ -7,7 +7,7 @@ var pump = require('pump');
 
 module.exports = RmS3PutDir;
 
-function RmS3PutDir (opts) {
+function RmS3PutDir (opts, cb) {
 
 	var aws = require('aws-sdk');
 
@@ -54,14 +54,11 @@ function RmS3PutDir (opts) {
                     	secretAccessKey: opts.aws.secret,
                         region: opts.aws.region });
 
-    opts.keyPrefix = opts.keyPrefix || '';
-
 	var awsS3 = new aws.S3();
 
     var source = from.obj([{
             directory: opts.directory,
             bucket:    opts.bucket,
-            keyPrefix: opts.keyPrefix,
             isWebsite: opts.isWebsite,
             gitSuffix: opts.gitSuffix,
             aws:       opts.aws
@@ -88,7 +85,7 @@ function RmS3PutDir (opts) {
             UploadFiles()
         ]);
 
-	return pump.apply(null, pipeline);
+	return pump.apply(null, pipeline, cb);
 }
 
 function GitSuffix () {
@@ -218,9 +215,9 @@ function SetWebsiteConfigWithS3 (s3) {
         ].join('');
     }
 
-    return through.obj(websiteConig);
+    return through.obj(websiteConfig);
 
-    function websiteConig (conf, enc, next) {
+    function websiteConfig (conf, enc, next) {
         var self = this;
 
         var m = [
@@ -275,7 +272,17 @@ function UploadFiles () {
             root: conf.directory,
             directoryFilter: ['!.git', '!cache']
         })
-        .on('error', debug);
+        .on('error', function (err) {
+            console.log(err.message);
+        });
+
+        var prefixer = through.obj(
+            function (row, enc, next) {
+                debug(row);
+                row.path = [conf.directory, row.name].join('/');
+                this.push(row);
+                next();
+            });
 
         var uploader = s3sync({
             key: conf.aws.key,
@@ -292,6 +299,6 @@ function UploadFiles () {
             next();
         });
 
-        files.pipe(uploader);
+        files.pipe(prefixer).pipe(uploader);
 	}
 }

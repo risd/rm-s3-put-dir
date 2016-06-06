@@ -14,9 +14,6 @@ rm-s3-put-dir directory
               Expects two keys: `key` & `secret`.
               Required.
 
-`keyPrefix`   Prefix for each file uploaded to
-              the bucket.
-
 Example
 
 ./bin/cmd public --bucket=risdmedia-assets
