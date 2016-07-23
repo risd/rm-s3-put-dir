@@ -84,6 +84,10 @@ if ('bucket' in args) {
     throw new Error(e.join('\n'));
 }
 
+if ('origins' in args) {
+    opts.origins = args.origins;
+}
+
 putDir(opts);
 
 

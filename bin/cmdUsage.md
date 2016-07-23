@@ -1,7 +1,7 @@
 rm-s3-put-dir directory
     --bucket
     --aws
-    --keyPrefix
+    --origin
 
 `directory`   The path to the file to upload.
               Required.
@@ -14,6 +14,9 @@ rm-s3-put-dir directory
               Expects two keys: `key` & `secret`.
               Required.
 
+`origins`     Comma seperated list of the domains to allow
+              to allow GET requests from.
+
 Example
 
-./bin/cmd public --bucket=risdmedia-assets
+./bin/cmd public --bucket=risdmedia-assets --origin=*.webhook.org,risd.edu

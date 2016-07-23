@@ -61,7 +61,8 @@ function RmS3PutDir (opts, cb) {
             bucket:    opts.bucket,
             isWebsite: opts.isWebsite,
             gitSuffix: opts.gitSuffix,
-            aws:       opts.aws
+            aws:       opts.aws,
+            origins:   opts.origins,
         }]);
 
     var pipeline = [source];
@@ -75,6 +76,10 @@ function RmS3PutDir (opts, cb) {
             CreateBucketWithS3(awsS3),
             SetBucketPolicyWithS3(awsS3)
         ]);
+
+    if (opts.origins)
+        pipeline = pipeline
+            .concat([SetCorsPolicyWithS3(awsS3)])
 
     if (opts.isWebsite)
         pipeline = pipeline
@@ -127,6 +132,8 @@ function CreateBucketWithS3 (s3) {
             ];
             throw new Error(e.join(''));
         } else {
+            debug('Create bucket using params: ');
+            debug(params);
             params.Bucket = conf.bucket;
             s3.createBucket(params, finish);
         }
@@ -181,6 +188,9 @@ function SetBucketPolicyWithS3 (s3) {
             ];
             throw new Error(e.join(''));
         } else {
+            debug('Set bucket policy:');
+            debug(params(conf.bucket));
+
             conf.policyConfig = params(conf.bucket);
             s3.putBucketPolicy(
                     conf.policyConfig,
@@ -196,6 +206,53 @@ function SetBucketPolicyWithS3 (s3) {
             }
             self.push(conf);
             next();
+        }
+    }
+}
+
+function SetCorsPolicyWithS3 (s3) {
+
+    function params (origins, bucketName) {
+
+        function corsrule (d) {
+            return [{
+                AllowedOrigins: origins.split(','),
+                AllowedMethods: ['GET'],
+                MaxAgeSeconds: 3000,
+                AllowedHeaders: [
+                    'Content-*',
+                    'Host',
+                ],
+            }]
+        }
+
+        return {
+            Bucket: bucketName,
+            CORSConfiguration: {
+                CORSRules: corsrule(origins)
+            }
+        };
+    }
+
+    return through.obj(setCors);
+
+    function setCors (conf, enc, next) {
+
+        debug('Setting CORS policy:');
+        debug(params(conf.origins));
+
+        conf.corsPolicy = params(conf.origins, conf.bucket);
+        s3.putBucketCors(conf.corsPolicy, finish);
+
+        function finish () {
+            if (err) {
+                conf.corsPolicy = false;
+                debug(err);
+                debug(err.stack);
+                throw new Error(err);
+            }
+            self.push(conf);
+            next();   
         }
     }
 }
