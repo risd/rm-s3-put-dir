@@ -239,12 +239,12 @@ function SetCorsPolicyWithS3 (s3) {
     function setCors (conf, enc, next) {
 
         debug('Setting CORS policy:');
-        debug(params(conf.origins));
+        debug(params(conf.origins, conf.bucket));
 
         conf.corsPolicy = params(conf.origins, conf.bucket);
         s3.putBucketCors(conf.corsPolicy, finish);
 
-        function finish () {
+        function finish (err, data) {
             if (err) {
                 conf.corsPolicy = false;
                 debug(err);
