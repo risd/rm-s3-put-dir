@@ -1,6 +1,5 @@
 var debug = require('debug')('rm-s3-put-dir');
 
-var fs = require('fs');
 var through = require('through2');
 var from = require('from2-array');
 var pump = require('pump');
