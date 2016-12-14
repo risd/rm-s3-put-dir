@@ -337,7 +337,7 @@ function UploadFiles () {
             function (row, enc, next) {
                 debug(row);
                 if (conf.directory !== '.') {
-                    row.path = [conf.directory, row.name].join('/');
+                    row.path = [conf.directory, row.path].join('/');
                 }
                 this.push(row);
                 next();
